@@ -13,7 +13,7 @@ jobs:
   build:
     name: Compilar .exe e instalador
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Descargar codigo fuente
@@ -24,27 +24,47 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Instalar dependencias
+      - name: Instalar dependencias Python
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install typer rich pyinstaller
 
+      - name: Descargar Chromium al directorio del proyecto
+        run: |
+          $BrowsersPath = Join-Path (Get-Location) "playwright_browsers"
+          New-Item -ItemType Directory -Force -Path $BrowsersPath | Out-Null
+          $env:PLAYWRIGHT_BROWSERS_PATH = $BrowsersPath
+          python -m playwright install chromium
+          $size = (Get-ChildItem $BrowsersPath -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
+          Write-Host "Chromium descargado: $([math]::Round($size, 0)) MB"
+        shell: pwsh
+
       - name: Compilar ejecutable con PyInstaller
         run: pyinstaller desktop_app.spec --clean --noconfirm
 
-      - name: Instalar Inno Setup 6
+      - name: Verificar que el .exe existe
         run: |
-          choco install innosetup --yes --no-progress
+          if (!(Test-Path "dist\SEACE-Buscador\SEACE-Buscador.exe")) {
+            Write-Error "El .exe no fue generado correctamente."
+            exit 1
+          }
+          $size = (Get-ChildItem "dist\SEACE-Buscador" -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
+          Write-Host "Build OK — $([math]::Round($size, 0)) MB total"
         shell: pwsh
 
-      - name: Crear carpeta de salida
+      - name: Instalar Inno Setup 6
+        run: choco install innosetup --yes --no-progress
+        shell: pwsh
+
+      - name: Crear carpeta de salida del instalador
         run: New-Item -ItemType Directory -Force -Path installer\output
         shell: pwsh
 
       - name: Compilar instalador con Inno Setup
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\seace_buscador.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
         shell: pwsh
 
       - name: Subir instalador como artefacto
@@ -64,7 +84,7 @@ jobs:
             1. Descarga **SEACEBuscador_Setup_1.0.0.exe**
             2. Doble clic → Siguiente → Siguiente → Instalar → Finalizar
             3. Se crea un icono en el Escritorio
-            No se requiere instalar Python ni ningun otro programa.
+            No se requiere instalar Python, Chromium ni ningun otro programa.
           files: installer/output/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

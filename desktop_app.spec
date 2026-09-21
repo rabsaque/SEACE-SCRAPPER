@@ -17,16 +17,25 @@ PROJECT = Path(SPECPATH)
 # CustomTkinter ships its own assets (themes, images) — include them
 ctk_path = Path(customtkinter.__file__).parent
 
+# Playwright browser binaries downloaded during CI build
+playwright_browsers = PROJECT / "playwright_browsers"
+
+datas = [
+    # CustomTkinter assets (themes + icons)
+    (str(ctk_path), "customtkinter"),
+    # All project source modules
+    (str(PROJECT / "src"), "src"),
+]
+
+# Bundle Chromium if it was downloaded during CI
+if playwright_browsers.exists():
+    datas.append((str(playwright_browsers), "playwright_browsers"))
+
 a = Analysis(
     [str(PROJECT / "desktop_app.py")],
     pathex=[str(PROJECT)],
     binaries=[],
-    datas=[
-        # CustomTkinter assets (themes + icons)
-        (str(ctk_path), "customtkinter"),
-        # All project source modules
-        (str(PROJECT / "src"), "src"),
-    ],
+    datas=datas,
     hiddenimports=[
         # UI
         "customtkinter",
@@ -39,6 +48,12 @@ a = Analysis(
         "sqlalchemy.dialects.sqlite",
         "sqlalchemy.dialects.sqlite.pysqlite",
         "aiosqlite",
+        # Playwright
+        "playwright",
+        "playwright.async_api",
+        "playwright.sync_api",
+        "playwright._impl._api_types",
+        "playwright._impl._connection",
         # Project modules
         "src.config",
         "src.storage.models",
@@ -69,10 +84,8 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
-    # Exclude heavy/unused packages to keep the build lean
+    runtime_hooks=["runtime_hooks/playwright_path.py"],
     excludes=[
-        "playwright",
         "fastapi",
         "uvicorn",
         "jinja2",
