@@ -43,12 +43,17 @@ def _configure_logging(verbose: bool = False) -> None:
     import sys
     logger.remove()
     level = "DEBUG" if verbose else "INFO"
+    # sys.stderr is None when running as a PyInstaller windowed exe (no console)
+    if sys.stderr is not None:
+        logger.add(
+            sys.stderr, level=level, colorize=True,
+            format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | {message}",
+        )
+    # Always log to file (works with or without a console)
+    logs_dir = Path("logs")
+    logs_dir.mkdir(exist_ok=True)
     logger.add(
-        sys.stderr, level=level, colorize=True,
-        format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | {message}",
-    )
-    logger.add(
-        "logs/seace_{time:YYYY-MM-DD}.log",
+        str(logs_dir / "seace_{time:YYYY-MM-DD}.log"),
         level="DEBUG", rotation="00:00", retention="14 days", encoding="utf-8",
     )
 
