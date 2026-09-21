@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SEACE Lead Dashboard</title>
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+  <style>
+    :root { --high:#198754; --medium:#fd7e14; --low:#ffc107; --none:#dc3545; }
+    body { background:#f4f6f9; font-size:.9rem; }
+    .navbar-brand { font-weight:700; letter-spacing:.5px; }
+
+    /* stat cards */
+    .stat-card { border-left:4px solid; border-radius:6px; }
+    .stat-card.high   { border-color:var(--high);   }
+    .stat-card.medium { border-color:var(--medium); }
+    .stat-card.low    { border-color:var(--low);    }
+    .stat-card.none   { border-color:var(--none);   }
+
+    /* match badges */
+    .badge-HIGH     { background:var(--high);   color:#fff; }
+    .badge-MEDIUM   { background:var(--medium); color:#fff; }
+    .badge-LOW      { background:var(--low);    color:#333; }
+    .badge-NO_MATCH { background:var(--none);   color:#fff; }
+    .badge-SKIPPED  { background:#6c757d;       color:#fff; }
+
+    .score-bar  { height:6px; border-radius:3px; background:#dee2e6; }
+    .score-fill { height:100%; border-radius:3px; transition:width .4s; }
+    .table-hover tbody tr:hover { background:#eef2ff; cursor:pointer; }
+    #detail-panel { display:none; }
+
+    .req-chip { display:inline-block; padding:2px 8px; border-radius:20px;
+                background:#e0e7ff; color:#3730a3; font-size:.78rem; margin:2px; }
+    .dis-chip { display:inline-block; padding:2px 8px; border-radius:20px;
+                background:#fee2e2; color:#991b1b; font-size:.78rem; margin:2px; }
+    .kw-chip  { display:inline-flex; align-items:center; gap:4px; padding:3px 10px;
+                border-radius:20px; background:#dbeafe; color:#1e40af;
+                font-size:.82rem; margin:3px; }
+    .kw-chip .rm { cursor:pointer; font-weight:700; }
+
+    /* keyword proof chips */
+    .kw-found-desc { display:inline-block; padding:2px 10px; border-radius:20px;
+                     background:#d1fae5; color:#065f46; font-size:.78rem;
+                     margin:2px; font-weight:600; border:1px solid #6ee7b7; }
+    .kw-found-pdf  { display:inline-block; padding:2px 10px; border-radius:20px;
+                     background:#fef3c7; color:#92400e; font-size:.78rem;
+                     margin:2px; font-weight:600; border:1px solid #fcd34d; }
+    .kw-none       { color:#9ca3af; font-size:.78rem; font-style:italic; }
+
+    /* live log terminal */
+    .log-box {
+      background:#0f172a; color:#94a3b8;
+      border-radius:6px; padding:12px;
+      font-family:monospace; font-size:.78rem;
+      height:320px; overflow-y:auto;
+      white-space:pre-wrap; word-break:break-all;
+    }
+    .log-box .log-ok  { color:#4ade80; }
+    .log-box .log-err { color:#f87171; }
+    .log-box .log-warn{ color:#fbbf24; }
+    .log-box .log-info{ color:#94a3b8; }
+
+    /* specs viewer */
+    .specs-box {
+      background:#1e293b; color:#e2e8f0;
+      border-radius:6px; padding:12px;
+      font-family:monospace; font-size:.78rem;
+      white-space:pre-wrap; word-break:break-word;
+      max-height:300px; overflow-y:auto;
+    }
+
+    /* run button pulse when active */
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+    .btn-running { animation:pulse 1.4s infinite; }
+
+    #toast-container { position:fixed; bottom:1.5rem; right:1.5rem; z-index:9999; }
+
+    /* login screen */
+    #login-screen {
+      position:fixed; inset:0; z-index:10000;
+      background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);
+      display:flex; align-items:center; justify-content:center;
+    }
+    #login-screen .card { width:100%; max-width:400px; }
+    #login-screen h2 { color:#1e3a5f; }
+  </style>
+</head>
+<body>
+
+<!-- ── Login screen (shown until session verified) ────────────────────────── -->
+<div id="login-screen">
+  <div class="card shadow-lg p-4">
+    <div class="text-center mb-4">
+      <i class="bi bi-search-heart-fill text-primary" style="font-size:2.5rem"></i>
+      <h2 class="mt-2 fw-bold">SEACE Dashboard</h2>
+      <p class="text-muted small">Inicia sesión para continuar</p>
+    </div>
+    <div id="login-error" class="alert alert-danger py-2 d-none"></div>
+    <div class="mb-3">
+      <label class="form-label">Usuario</label>
+      <input type="text" id="login-user" class="form-control" placeholder="admin"
+             onkeydown="if(event.key==='Enter') doLogin()" />
+    </div>
+    <div class="mb-4">
+      <label class="form-label">Contraseña</label>
+      <input type="password" id="login-pass" class="form-control"
+             onkeydown="if(event.key==='Enter') doLogin()" />
+    </div>
+    <button class="btn btn-primary w-100" onclick="doLogin()">
+      <i class="bi bi-box-arrow-in-right me-1"></i> Ingresar
+    </button>
+  </div>
+</div>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────────────── -->
+<nav class="navbar navbar-dark bg-primary px-3 mb-4">
+  <span class="navbar-brand">
+    <i class="bi bi-search-heart-fill me-2"></i>SEACE Lead Dashboard
+  </span>
+  <div class="d-flex gap-2 align-items-center">
+    <button id="btn-run" class="btn btn-sm btn-success" onclick="openRunModal()">
+      <i class="bi bi-play-fill"></i> Ejecutar Scraper
+    </button>
+    <button class="btn btn-sm btn-outline-light" onclick="openSettings()">
+      <i class="bi bi-gear"></i> Configuración
+    </button>
+    <button class="btn btn-sm btn-outline-light" onclick="exportExcel()">
+      <i class="bi bi-file-earmark-excel"></i> Exportar
+    </button>
+    <button class="btn btn-sm btn-outline-danger" onclick="clearAllLeads()" title="Eliminar mis resultados">
+      <i class="bi bi-trash3"></i> Limpiar
+    </button>
+    <span id="nav-admin-btn" style="display:none">
+      <button class="btn btn-sm btn-outline-warning" onclick="openUserMgmt()" title="Gestión de usuarios">
+        <i class="bi bi-people-fill"></i>
+      </button>
+    </span>
+    <span class="text-white-50 small d-none d-md-inline" id="nav-username"></span>
+    <button class="btn btn-sm btn-outline-light" onclick="doLogout()" title="Cerrar sesión">
+      <i class="bi bi-box-arrow-right"></i>
+    </button>
+  </div>
+</nav>
+
+<div class="container-fluid px-4">
+
+  <!-- Stat cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card stat-card high p-3">
+        <div class="text-muted small">Alta coincidencia</div>
+        <div class="fs-3 fw-bold text-success" id="s-high">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card stat-card medium p-3">
+        <div class="text-muted small">Media coincidencia</div>
+        <div class="fs-3 fw-bold" style="color:var(--medium)" id="s-medium">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card stat-card low p-3">
+        <div class="text-muted small">Baja coincidencia</div>
+        <div class="fs-3 fw-bold text-warning" id="s-low">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card stat-card none p-3">
+        <div class="text-muted small">Sin coincidencia</div>
+        <div class="fs-3 fw-bold text-danger" id="s-none">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card p-3">
+        <div class="text-muted small">Revisados</div>
+        <div class="fs-3 fw-bold text-secondary" id="s-reviewed">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <div class="card p-3">
+        <div class="text-muted small">Decisión BID</div>
+        <div class="fs-3 fw-bold text-primary" id="s-bid">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card mb-3 p-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label mb-1">Score mínimo</label>
+        <input type="number" id="f-score" class="form-control form-control-sm"
+               value="0" min="0" max="100" style="width:80px" />
+      </div>
+      <div class="col-auto">
+        <label class="form-label mb-1">Nivel</label>
+        <select id="f-level" class="form-select form-select-sm" style="width:145px">
+          <option value="">Todos</option>
+          <option value="HIGH">HIGH</option>
+          <option value="MEDIUM">MEDIUM</option>
+          <option value="LOW">LOW</option>
+          <option value="NO_MATCH">NO_MATCH</option>
+          <option value="SKIPPED">Sin puntuación</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label mb-1">Estado</label>
+        <select id="f-reviewed" class="form-select form-select-sm" style="width:120px">
+          <option value="">Todos</option>
+          <option value="false">Pendiente</option>
+          <option value="true">Revisado</option>
+        </select>
+      </div>
+      <div class="col">
+        <label class="form-label mb-1">Buscar</label>
+        <input type="text" id="f-text" class="form-control form-control-sm"
+               placeholder="Entidad, nomenclatura, descripción…" />
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary" onclick="loadLeads()">
+          <i class="bi bi-funnel"></i> Filtrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lead table — always full width -->
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><b id="lead-count">0</b> oportunidades encontradas</span>
+      <small class="text-muted">Haz clic en una fila para ver el detalle completo</small>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="width:80px">Score</th>
+            <th style="min-width:220px">Entidad</th>
+            <th style="min-width:160px">Nomenclatura</th>
+            <th style="min-width:160px">Tipo objeto</th>
+            <th>Descripción</th>
+            <th style="width:100px">Fecha</th>
+            <th style="width:100px">Estado</th>
+          </tr>
+        </thead>
+        <tbody id="lead-tbody">
+          <tr><td colspan="7" class="text-center text-muted py-5">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer text-center">
+      <button class="btn btn-sm btn-outline-secondary" id="btn-more"
+              onclick="loadMore()" style="display:none">
+        Cargar más <i class="bi bi-arrow-down"></i>
+      </button>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL — Detalle del lead
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+
+      <!-- Header: score + entity -->
+      <div class="modal-header align-items-start" id="d-modal-header">
+        <div class="flex-grow-1 me-3">
+          <div class="d-flex align-items-center gap-3 mb-1">
+            <span class="display-5 fw-bold" id="d-score">—</span>
+            <div>
+              <span id="d-badge" class="badge fs-6">—</span>
+              <div class="score-bar mt-1" style="width:140px">
+                <div class="score-fill" id="d-score-fill" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="d-flex gap-2" id="d-links"></div>
+          </div>
+          <div class="fw-bold fs-6" id="d-entity"></div>
+          <div class="text-muted small" id="d-nomenclature"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Row 1: description + object type -->
+        <div class="row g-3 mb-3">
+          <div class="col-md-8">
+            <div class="p-3 rounded h-100" style="background:#f8fafc;border:1px solid #e2e8f0">
+              <div class="text-muted small fw-semibold mb-1">
+                <i class="bi bi-card-text me-1"></i>Descripción del objeto
+              </div>
+              <p id="d-description" class="mb-0" style="white-space:pre-wrap"></p>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="p-3 rounded h-100" style="background:#f8fafc;border:1px solid #e2e8f0">
+              <div class="text-muted small fw-semibold mb-1">
+                <i class="bi bi-tag me-1"></i>Tipo de objeto
+              </div>
+              <p id="d-obj-type" class="mb-0 fw-semibold"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 2: keyword proof -->
+        <div class="p-3 rounded mb-3" style="background:#f0fdf4;border:1px solid #bbf7d0">
+          <div class="fw-semibold mb-2" style="font-size:.85rem;color:#166534;">
+            <i class="bi bi-key-fill me-1"></i>Palabras clave detectadas
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <div class="text-muted mb-1" style="font-size:.75rem;">
+                <i class="bi bi-card-text me-1"></i>En título / descripción:
+              </div>
+              <div id="d-kw-desc"></div>
+            </div>
+            <div class="col-md-6" id="d-kw-pdf-row">
+              <div class="mb-1 d-flex align-items-center gap-2 flex-wrap" style="font-size:.75rem;" id="d-kw-pdf-label">
+                <i class="bi bi-file-earmark-pdf me-1"></i>En especificaciones PDF extraídas:
+              </div>
+              <div id="d-kw-pdf"></div>
+              <div id="d-pdf-btn-row" class="mt-2" style="display:none">
+                <a id="d-pdf-link" href="#" target="_blank"
+                   class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-file-earmark-pdf-fill me-1"></i>Ver PDF
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI block -->
+        <div id="d-ai-block" class="mb-3">
+          <div class="p-3 rounded" style="background:#eff6ff;border:1px solid #bfdbfe">
+            <div class="fw-semibold mb-2" style="font-size:.85rem;color:#1e40af;">
+              <i class="bi bi-stars me-1"></i>Análisis de Inteligencia Artificial
+            </div>
+            <p id="d-summary" class="fst-italic text-secondary mb-2"></p>
+            <div class="row g-2">
+              <div class="col-md-6">
+                <div class="text-muted small mb-1">Requisitos clave:</div>
+                <div id="d-reqs"></div>
+              </div>
+              <div class="col-md-6">
+                <div class="text-muted small mb-1">Posibles descalificadores:</div>
+                <div id="d-disqs"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cronograma -->
+        <div id="d-cronograma-block" class="mb-3" style="display:none">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <div class="fw-semibold" style="font-size:.85rem;">
+              <i class="bi bi-calendar3 me-1 text-primary"></i>Cronograma del proceso
+            </div>
+            <button class="btn btn-sm btn-outline-secondary py-0"
+                    onclick="toggleCronograma()" title="Expandir / colapsar">
+              <i id="cron-icon" class="bi bi-chevron-down"></i>
+            </button>
+          </div>
+          <div id="d-cronograma-wrapper">
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered table-hover mb-0"
+                     style="font-size:.82rem;">
+                <thead class="table-light" id="d-cron-head"></thead>
+                <tbody id="d-cron-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Specs text -->
+        <div id="d-specs-block">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <div class="fw-semibold" style="font-size:.85rem;">
+              <i class="bi bi-file-text me-1 text-secondary"></i>
+              Especificaciones Técnicas extraídas del PDF
+            </div>
+            <button class="btn btn-sm btn-outline-secondary py-0"
+                    onclick="toggleSpecs()" title="Expandir / colapsar">
+              <i id="specs-icon" class="bi bi-chevron-down"></i>
+            </button>
+          </div>
+          <div id="d-specs-wrapper">
+            <div class="specs-box" id="d-specs"></div>
+          </div>
+        </div>
+
+      </div><!-- /modal-body -->
+
+      <!-- Footer: review form -->
+      <div class="modal-footer flex-column align-items-stretch gap-2">
+        <div class="fw-semibold small text-muted">
+          <i class="bi bi-pencil-square me-1"></i>Registrar revisión
+        </div>
+        <div class="row g-2 w-100">
+          <div class="col-md-4">
+            <label class="form-label mb-1 small">Decisión</label>
+            <select id="d-decision" class="form-select form-select-sm">
+              <option value="PENDING">Pendiente</option>
+              <option value="BID">Participar (BID)</option>
+              <option value="SKIP">Descartar</option>
+            </select>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label mb-1 small">Notas</label>
+            <textarea id="d-notes" class="form-control form-control-sm" rows="2"
+                      placeholder="Observaciones adicionales…"></textarea>
+          </div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 w-100">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          <button class="btn btn-success px-4" onclick="saveReview()">
+            <i class="bi bi-check-circle"></i> Guardar revisión
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /modal-content -->
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL — Ejecutar Scraper
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="runModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-play-circle me-2 text-success"></i>Ejecutar Scraper SEACE
+        </h5>
+        <button type="button" class="btn-close" id="run-modal-close"
+                data-bs-dismiss="modal" onclick="onRunModalClose()"></button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- ── Options (shown before start) ── -->
+        <div id="run-options">
+          <p class="text-muted mb-3">
+            El scraper buscará en el portal SEACE usando tus palabras clave configuradas
+            y guardará los resultados en la base de datos.
+          </p>
+
+          <div class="card bg-light border-0 p-3 mb-3">
+            <div class="fw-semibold mb-2">Opciones de ejecución</div>
+
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" id="opt-pdf">
+              <label class="form-check-label" for="opt-pdf">
+                <b>Descargar PDFs</b>
+                <small class="text-muted d-block">
+                  Descarga y extrae las páginas de especificaciones técnicas de cada
+                  coincidencia. Más lento pero muestra el contenido del documento.
+                </small>
+              </label>
+            </div>
+
+            <div class="form-check" id="opt-ai-row">
+              <input class="form-check-input" type="checkbox" id="opt-ai" disabled>
+              <label class="form-check-label text-muted" for="opt-ai">
+                <b>Análisis con IA (Claude)</b>
+                <small class="d-block">
+                  Requiere descargar PDFs y tener configurada una clave ANTHROPIC_API_KEY.
+                </small>
+              </label>
+            </div>
+          </div>
+
+          <div class="alert alert-info py-2 mb-0">
+            <i class="bi bi-lightning-charge-fill me-1"></i>
+            <b>Recomendado para empezar:</b> deja las opciones sin marcar
+            para una búsqueda rápida por palabras clave sin descargas ni IA.
+          </div>
+        </div>
+
+        <!-- ── SEACE description filter ── -->
+        <div id="run-options-query" class="mt-3">
+          <label class="form-label fw-semibold mb-1">
+            <i class="bi bi-search me-1"></i>Búsqueda específica en SEACE
+            <span class="badge bg-secondary ms-1">Opcional</span>
+          </label>
+          <p class="text-muted small mb-2">
+            Escribe un término para filtrarlo directamente en el campo
+            <i>Descripción del Objeto</i> de SEACE antes de buscar.
+            SEACE devolverá solo resultados que contengan ese texto,
+            reemplazando el filtro de palabras clave local.
+          </p>
+          <input type="text" id="opt-search-query" class="form-control form-control-sm"
+                 placeholder="Ej: MACROMEDIDOR, CALIBRACION DE PRESION…"
+                 style="max-width:480px" />
+          <div class="form-text">Déjalo en blanco para usar las palabras clave configuradas.</div>
+        </div>
+
+        <!-- ── Live log (shown after start) ── -->
+        <div id="run-progress" style="display:none">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div>
+              <span class="fw-semibold" id="run-mode-label">Ejecutando…</span>
+              <span class="badge bg-warning text-dark ms-2" id="run-status-badge">En curso</span>
+            </div>
+            <small class="text-muted" id="run-started-label"></small>
+          </div>
+
+          <!-- Progress bar (indeterminate while running) -->
+          <div class="progress mb-2" style="height:6px">
+            <div id="run-progress-bar"
+                 class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                 style="width:100%"></div>
+          </div>
+
+          <!-- Log terminal -->
+          <div class="log-box" id="run-log"></div>
+
+          <div class="mt-2 d-flex justify-content-between align-items-center">
+            <small class="text-muted" id="run-log-count">0 líneas</small>
+            <button class="btn btn-sm btn-outline-secondary" onclick="scrollLogToBottom()">
+              <i class="bi bi-arrow-down-circle"></i> Ir al final
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /modal-body -->
+
+      <div class="modal-footer" id="run-footer">
+        <!-- Before start -->
+        <div id="run-footer-before" class="w-100 d-flex justify-content-between">
+          <button class="btn btn-secondary" data-bs-dismiss="modal"
+                  onclick="onRunModalClose()">Cancelar</button>
+          <button class="btn btn-success px-4" onclick="startScraper()">
+            <i class="bi bi-play-fill"></i> Iniciar
+          </button>
+        </div>
+        <!-- While running / after -->
+        <div id="run-footer-after" class="w-100 d-flex justify-content-between"
+             style="display:none !important">
+          <button class="btn btn-outline-danger" onclick="stopScraper()" id="btn-stop">
+            <i class="bi bi-stop-fill"></i> Detener
+          </button>
+          <button class="btn btn-primary" id="btn-close-done" onclick="closeDone()"
+                  style="display:none">
+            <i class="bi bi-check-lg"></i> Cerrar y ver resultados
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /modal-content -->
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL — Configuración
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-gear me-2"></i>Configuración del Scraper</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <div class="mb-4">
+          <label class="form-label fw-semibold">Palabras clave de búsqueda</label>
+          <p class="text-muted small mb-2">
+            El scraper guarda únicamente las filas cuya descripción contenga
+            al menos una de estas palabras (sin distinción de mayúsculas).
+          </p>
+          <div class="border rounded p-2 d-flex flex-wrap gap-1 mb-2"
+               id="kw-chips" style="min-height:44px; cursor:text"
+               onclick="focusKwInput()"></div>
+          <div class="input-group input-group-sm">
+            <input type="text" id="kw-input" class="form-control"
+                   placeholder="Escribe y presiona Enter o coma para agregar…" />
+            <button class="btn btn-outline-secondary" onclick="addKwFromInput()">
+              <i class="bi bi-plus"></i> Agregar
+            </button>
+          </div>
+          <div class="form-text">Ej: limpieza, seguridad, vigilancia, mantenimiento</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">
+            Paginación — Límite de páginas a escanear
+          </label>
+          <p class="text-muted small mb-2">
+            SEACE puede mostrar cientos de páginas de resultados. Limitar las páginas
+            acelera la ejecución; <b>0 = sin límite</b> (escanea todo).
+            Empieza con 10–25 para pruebas rápidas.
+          </p>
+          <div class="d-flex align-items-center gap-2">
+            <input type="number" id="s-max-pages" class="form-control form-control-sm"
+                   style="width:90px" min="0" value="0" />
+            <span class="text-muted small">páginas máximo (0 = todas)</span>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">
+            Páginas del PDF a extraer (Especificaciones Técnicas)
+          </label>
+          <p class="text-muted small mb-2">
+            Rango de páginas donde suelen estar las especificaciones en los
+            documentos base del SEACE. Las páginas 20–30 cubren la mayoría de los casos.
+          </p>
+          <div class="d-flex align-items-center gap-2">
+            <label class="mb-0 text-nowrap">Desde página</label>
+            <input type="number" id="s-start-page" class="form-control form-control-sm"
+                   style="width:80px" min="1" value="20" />
+            <label class="mb-0 text-nowrap">hasta</label>
+            <input type="number" id="s-end-page" class="form-control form-control-sm"
+                   style="width:80px" min="1" value="30" />
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">
+            <i class="bi bi-calendar-range me-1"></i>Rango de fechas de publicacion
+          </label>
+          <p class="text-muted small mb-2">
+            Filtra en SEACE solo los procesos publicados en este rango.
+            Deja en blanco para no filtrar por fecha. Formato: <b>DD/MM/AAAA</b>.
+          </p>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <label class="mb-0 text-nowrap">Desde</label>
+            <input type="text" id="s-date-from" class="form-control form-control-sm"
+                   style="width:130px" placeholder="01/01/2026" maxlength="10" />
+            <label class="mb-0 text-nowrap">hasta</label>
+            <input type="text" id="s-date-to" class="form-control form-control-sm"
+                   style="width:130px" placeholder="31/12/2026" maxlength="10" />
+          </div>
+        </div>
+
+        <div class="alert alert-info py-2 mb-0">
+          <i class="bi bi-info-circle me-1"></i>
+          Los cambios se aplican en la <b>proxima ejecucion</b> del scraper.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveSettings()">
+          <i class="bi bi-save"></i> Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL — Gestión de usuarios (admin)
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="userMgmtModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-people-fill me-2"></i>Gestión de Usuarios</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-4">
+          <h6 class="fw-semibold mb-3">Crear nuevo usuario</h6>
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label small">Usuario</label>
+              <input type="text" id="nu-username" class="form-control form-control-sm" placeholder="nombre_usuario" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small">Contrasena</label>
+              <input type="password" id="nu-password" class="form-control form-control-sm" placeholder="min. 6 caracteres" />
+            </div>
+            <div class="col-md-2">
+              <div class="form-check mt-3">
+                <input class="form-check-input" type="checkbox" id="nu-admin" />
+                <label class="form-check-label small" for="nu-admin">Admin</label>
+              </div>
+            </div>
+            <div class="col-md-2">
+              <button class="btn btn-sm btn-primary w-100" onclick="createUser()">
+                <i class="bi bi-person-plus"></i> Crear
+              </button>
+            </div>
+          </div>
+        </div>
+        <h6 class="fw-semibold mb-2">Usuarios activos</h6>
+        <table class="table table-sm table-bordered">
+          <thead class="table-light">
+            <tr><th>ID</th><th>Usuario</th><th>Rol</th><th>Creado</th><th></th></tr>
+          </thead>
+          <tbody id="user-list-body">
+            <tr><td colspan="5" class="text-center text-muted">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     JavaScript
+══════════════════════════════════════════════════════════════════════════ -->
+<script>
+  // ── Base-path support (reverse-proxy under a subdirectory) ────────────────
+  // The PHP proxy injects:  <script>window._BASE='/seace'</script>
+  // before this file is loaded.  When running directly on localhost, _BASE
+  // is empty and everything works as before.
+  const _BASE = window._BASE || '';
+
+  // Patch window.fetch so all relative API paths are transparently prefixed.
+  (function() {
+    const _orig = window.fetch.bind(window);
+    window.fetch = function(url, ...args) {
+      if (_BASE && typeof url === 'string' && url.startsWith('/'))
+        url = _BASE + url;
+      return _orig(url, ...args);
+    };
+  })();
+
+  // Helper for window.location.href assignments that use absolute paths.
+  function _b(path) { return _BASE + path; }
+
+  // ── State ────────────────────────────────────────────────────────────────
+  let _leads          = [];
+  let _offset         = 0;
+  const PAGE          = 50;
+  let _selId          = null;
+  let _keywords       = [];
+  let _activeKeywords = [];
+  let _specsOpen      = true;
+  let _pollTimer      = null;
+  let _logTotal       = 0;
+  let _currentUser    = null;   // { id, username, is_admin }
+
+  // ── Boot ─────────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    document.getElementById('f-text').addEventListener('keyup', e => {
+      if (e.key === 'Enter') loadLeads();
+    });
+    document.getElementById('kw-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addKwFromInput(); }
+    });
+    document.getElementById('opt-pdf').addEventListener('change', e => {
+      document.getElementById('opt-ai').disabled = !e.target.checked;
+      if (!e.target.checked) document.getElementById('opt-ai').checked = false;
+    });
+  });
+
+  // ── Auth ─────────────────────────────────────────────────────────────────
+  async function checkAuth() {
+    try {
+      const user = await fetch('/api/auth/me').then(r => r.ok ? r.json() : null);
+      if (!user) { showLogin(); return; }
+      _onLoggedIn(user);
+    } catch(e) { showLogin(); }
+  }
+
+  function showLogin() {
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+
+  function _onLoggedIn(user) {
+    _currentUser = user;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('nav-username').textContent = user.username;
+    if (user.is_admin) document.getElementById('nav-admin-btn').style.display = '';
+    loadStats();
+    loadLeads();
+    loadActiveKeywords();
+    checkScraperStatus();
+  }
+
+  async function doLogin() {
+    const username = document.getElementById('login-user').value.trim();
+    const password = document.getElementById('login-pass').value;
+    const errEl = document.getElementById('login-error');
+    errEl.classList.add('d-none');
+    if (!username || !password) {
+      errEl.textContent = 'Ingresa usuario y contrasena.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    try {
+      const r = await fetch('/api/auth/login', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ username, password }),
+      });
+      if (!r.ok) {
+        const err = await r.json();
+        errEl.textContent = err.detail || 'Error al iniciar sesion.';
+        errEl.classList.remove('d-none');
+        return;
+      }
+      const user = await r.json();
+      document.getElementById('login-pass').value = '';
+      _onLoggedIn(user);
+    } catch(e) {
+      errEl.textContent = 'No se pudo conectar con el servidor.';
+      errEl.classList.remove('d-none');
+    }
+  }
+
+  async function doLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    _currentUser = null;
+    _leads = [];
+    document.getElementById('nav-username').textContent = '';
+    document.getElementById('nav-admin-btn').style.display = 'none';
+    showLogin();
+  }
+
+  // ── User management (admin) ───────────────────────────────────────────────
+  async function openUserMgmt() {
+    await loadUserList();
+    new bootstrap.Modal(document.getElementById('userMgmtModal')).show();
+  }
+
+  async function loadUserList() {
+    const tbody = document.getElementById('user-list-body');
+    try {
+      const users = await fetchJSON('/api/users');
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${esc(u.username)}</td>
+          <td>${u.is_admin ? '<span class="badge bg-warning text-dark">Admin</span>' : 'Usuario'}</td>
+          <td class="small text-muted">${u.created_at.substring(0,10)}</td>
+          <td>${u.id !== _currentUser?.id
+            ? `<button class="btn btn-outline-danger btn-sm" onclick="deleteUser(${u.id},'${esc(u.username)}')">
+               <i class="bi bi-trash3"></i></button>` : ''}</td>
+        </tr>`).join('');
+    } catch(e) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Error al cargar usuarios.</td></tr>';
+    }
+  }
+
+  async function createUser() {
+    const username = document.getElementById('nu-username').value.trim();
+    const password = document.getElementById('nu-password').value;
+    const is_admin = document.getElementById('nu-admin').checked;
+    if (!username || !password) { toast('Completa usuario y contrasena.','warning'); return; }
+    const r = await fetch('/api/users', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ username, password, is_admin }),
+    });
+    if (r.ok) {
+      toast(`Usuario "${username}" creado.`, 'success');
+      document.getElementById('nu-username').value = '';
+      document.getElementById('nu-password').value = '';
+      document.getElementById('nu-admin').checked  = false;
+      await loadUserList();
+    } else {
+      const err = await r.json();
+      toast(err.detail || 'Error al crear usuario.', 'danger');
+    }
+  }
+
+  async function deleteUser(id, name) {
+    if (!confirm(`Eliminar usuario "${name}"? Sus resultados se conservaran.`)) return;
+    const r = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+    if (r.ok) { toast(`Usuario eliminado.`, 'success'); await loadUserList(); }
+    else { const e = await r.json(); toast(e.detail || 'Error.', 'danger'); }
+  }
+
+  // Load active keywords from DB (used for keyword-proof chips in detail panel)
+  async function loadActiveKeywords() {
+    try {
+      const s = await fetchJSON('/api/settings');
+      _activeKeywords = Array.isArray(s.keywords) ? s.keywords : [];
+    } catch(e) {}
+  }
+
+  // Normalize text: lowercase + strip accents (mirrors Python _normalize)
+  function _norm(s) {
+    return String(s||'').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  // Return subset of _activeKeywords found inside `text`
+  function _findKwIn(text) {
+    const n = _norm(text);
+    return _activeKeywords.filter(kw => n.includes(_norm(kw)));
+  }
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  async function loadStats() {
+    try {
+      const s = await fetchJSON('/api/stats');
+      setText('s-high',     s.high);
+      setText('s-medium',   s.medium);
+      setText('s-low',      s.low);
+      setText('s-none',     s.no_match);
+      setText('s-reviewed', s.reviewed);
+      setText('s-bid',      s.bid);
+    } catch(e) {}
+  }
+
+  // ── Leads ─────────────────────────────────────────────────────────────────
+  async function loadLeads() {
+    _offset = 0; _leads = [];
+    document.getElementById('lead-tbody').innerHTML =
+      '<tr><td colspan="7" class="text-center text-muted py-5">Cargando…</td></tr>';
+    await _fetchPage();
+  }
+  async function loadMore() { _offset += PAGE; await _fetchPage(); }
+
+  async function _fetchPage() {
+    const score    = document.getElementById('f-score').value || 0;
+    const reviewed = document.getElementById('f-reviewed').value;
+    let url = `/api/leads?min_score=${score}&limit=${PAGE}&offset=${_offset}`;
+    if (reviewed !== '') url += `&reviewed=${reviewed}`;
+
+    const data = await fetchJSON(url);
+    const items = data.items;
+    _leads = _offset === 0 ? items : [..._leads, ...items];
+
+    const textQ = document.getElementById('f-text').value.toLowerCase();
+    const level  = document.getElementById('f-level').value;
+    const shown  = _leads.filter(l => {
+      const blob = `${l.entity} ${l.nomenclature} ${l.description}`.toLowerCase();
+      return (!textQ || blob.includes(textQ)) && (!level || l.match_level === level);
+    });
+
+    document.getElementById('lead-count').textContent = data.total;
+    renderTable(shown, _offset === 0);
+    document.getElementById('btn-more').style.display =
+      (_offset + PAGE < data.total) ? 'inline-block' : 'none';
+  }
+
+  function renderTable(leads, reset) {
+    const tbody = document.getElementById('lead-tbody');
+    if (reset) tbody.innerHTML = '';
+    if (!leads.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="7" class="text-center text-muted py-5">Sin resultados.</td></tr>';
+      return;
+    }
+    leads.forEach(l => {
+      const tr = document.createElement('tr');
+      if (l.id === _selId) tr.classList.add('table-primary');
+      tr.dataset.id = l.id;
+      tr.onclick = () => openDetail(l);
+      const scoreDisplay = (l.match_level === 'SKIPPED' || !l.match_score)
+        ? '<span class="badge badge-SKIPPED">—</span>'
+        : `<span class="badge badge-${l.match_level}">${l.match_score}</span>`;
+      const hasPdf = l.pdf_page_count > 0;
+      tr.innerHTML = `
+        <td>${scoreDisplay}${hasPdf ? ' <i class="bi bi-file-earmark-pdf text-muted small" title="PDF leído"></i>' : ''}</td>
+        <td title="${esc(l.entity)}">${esc(l.entity)}</td>
+        <td class="text-truncate" style="max-width:160px" title="${esc(l.nomenclature)}">${esc(l.nomenclature)}</td>
+        <td class="text-truncate" style="max-width:150px" title="${esc(l.object_type)}">${esc(l.object_type)}</td>
+        <td title="${esc(l.description)}">${esc(l.description)}</td>
+        <td>${(l.scraped_at||'').substring(0,10)}</td>
+        <td>${l.reviewed
+          ? `<span class="badge bg-secondary">${l.bid_decision||'revisado'}</span>`
+          : '<span class="badge bg-warning text-dark">pendiente</span>'}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ── Detail modal ──────────────────────────────────────────────────────────
+  function openDetail(lead) {
+    _selId = lead.id;
+    document.querySelectorAll('#lead-tbody tr').forEach(r =>
+      r.classList.toggle('table-primary', Number(r.dataset.id) === lead.id));
+
+    // ── Score / badge ──────────────────────────────────────────────────────
+    const score = lead.match_score || 0;
+    setText('d-score', score || '—');
+    const badge = document.getElementById('d-badge');
+    badge.textContent = lead.match_level || '—';
+    badge.className   = `badge fs-6 badge-${lead.match_level}`;
+    const fill = document.getElementById('d-score-fill');
+    fill.style.width = score + '%';
+    fill.className   = 'score-fill ' +
+      (score >= 75 ? 'bg-success' : score >= 40 ? 'bg-warning' : 'bg-danger');
+
+    // ── Core fields ───────────────────────────────────────────────────────
+    setText('d-entity',      lead.entity);
+    setText('d-nomenclature', lead.nomenclature);
+    setText('d-description', lead.description);
+    setText('d-obj-type',    lead.object_type || '—');
+
+    // ── External link ─────────────────────────────────────────────────────
+    const links = document.getElementById('d-links');
+    links.innerHTML = lead.ficha_url
+      ? `<a href="${esc(lead.ficha_url)}" target="_blank"
+           class="btn btn-sm btn-outline-primary">
+           <i class="bi bi-box-arrow-up-right"></i> Ficha SEACE</a>`
+      : '';
+
+    // ── Keyword proof chips ───────────────────────────────────────────────
+    const titleBlob = [lead.entity, lead.nomenclature, lead.object_type, lead.description].join(' ');
+    document.getElementById('d-kw-desc').innerHTML = _kwChips(_findKwIn(titleBlob), 'desc');
+
+    const specs       = (lead.tech_specs_text || '').trim();
+    const pdfPath     = (lead.pdf_local_path  || '').trim();
+    const pdfFilename = pdfPath ? pdfPath.split(/[\\/]/).pop() : '';
+    const pdfPages    = lead.pdf_page_count || 0;
+    const hasPdf      = pdfPath.length > 0;   // PDF was downloaded
+    const hasText     = specs.length > 0;      // text was extracted from it
+
+    const kwPdfRow = document.getElementById('d-kw-pdf-row');
+    kwPdfRow.style.display = '';
+
+    // Show / hide "Ver PDF" button
+    const pdfBtnRow = document.getElementById('d-pdf-btn-row');
+    const pdfLink   = document.getElementById('d-pdf-link');
+    if (hasPdf) {
+      pdfBtnRow.style.display = '';
+      pdfLink.href = `/api/pdf/${lead.id}`;
+      pdfLink.textContent = '';
+      pdfLink.innerHTML = `<i class="bi bi-file-earmark-pdf-fill me-1"></i>${esc(pdfFilename)}`;
+    } else {
+      pdfBtnRow.style.display = 'none';
+    }
+
+    if (hasPdf && hasText) {
+      const pageInfo = pdfPages > 0 ? ` &nbsp;·&nbsp; ${pdfPages} págs.` : '';
+      document.getElementById('d-kw-pdf-label').innerHTML =
+        `<i class="bi bi-file-earmark-pdf text-danger me-1"></i>`
+        + `<strong>${esc(pdfFilename)}</strong>`
+        + `<span class="text-muted ms-2" style="font-size:.75rem;">${pageInfo}</span>`
+        + ` <span class="badge bg-success ms-2">PDF leído ✓</span>`;
+      document.getElementById('d-kw-pdf').innerHTML = _kwChips(_findKwIn(specs), 'pdf');
+    } else if (hasPdf && !hasText) {
+      document.getElementById('d-kw-pdf-label').innerHTML =
+        `<i class="bi bi-file-earmark-pdf text-danger me-1"></i>`
+        + `<strong>${esc(pdfFilename)}</strong>`
+        + ` <span class="badge bg-warning text-dark ms-2">Descargado · sin texto en rango de páginas</span>`;
+      document.getElementById('d-kw-pdf').innerHTML =
+        `<span class="kw-none">El PDF fue descargado pero no se halló texto en el rango configurado. Ajusta el rango en <b>Configuración</b>.</span>`;
+    } else {
+      document.getElementById('d-kw-pdf-label').innerHTML =
+        `<i class="bi bi-file-earmark-pdf me-1"></i>En especificaciones PDF:`;
+      document.getElementById('d-kw-pdf').innerHTML =
+        `<span class="kw-none"><i class="bi bi-info-circle me-1"></i>Sin PDF descargado. Ejecuta el scraper con <b>Descargar PDFs</b> activado.</span>`;
+    }
+
+    // ── AI block ──────────────────────────────────────────────────────────
+    const aiUsed = lead.match_level && !['SKIPPED', '', 'NO_MATCH'].includes(lead.match_level);
+    document.getElementById('d-ai-block').style.display = aiUsed ? '' : 'none';
+    if (aiUsed) {
+      setText('d-summary', lead.ai_summary);
+      document.getElementById('d-reqs').innerHTML =
+        (lead.key_requirements || []).map(r => `<span class="req-chip">${esc(r)}</span>`).join('');
+      document.getElementById('d-disqs').innerHTML =
+        (lead.disqualifiers || []).map(d => `<span class="dis-chip">${esc(d)}</span>`).join('');
+    }
+
+    // ── Cronograma ────────────────────────────────────────────────────────
+    const cronBlock = document.getElementById('d-cronograma-block');
+    const cron = lead.cronograma || [];
+    if (cron.length) {
+      cronBlock.style.display = '';
+      const cronKeys = Object.keys(cron[0]);
+      document.getElementById('d-cron-head').innerHTML =
+        '<tr>' + cronKeys.map(k => `<th>${esc(k)}</th>`).join('') + '</tr>';
+      document.getElementById('d-cron-body').innerHTML = cron.map(row =>
+        '<tr>' + cronKeys.map(k => `<td>${esc(row[k] || '')}</td>`).join('') + '</tr>'
+      ).join('');
+    } else {
+      cronBlock.style.display = 'none';
+    }
+
+    // ── Specs box ─────────────────────────────────────────────────────────
+    document.getElementById('d-specs-block').style.display = specs ? '' : 'none';
+    if (specs) document.getElementById('d-specs').textContent = specs;
+
+    // ── Review form ───────────────────────────────────────────────────────
+    document.getElementById('d-decision').value = lead.bid_decision || 'PENDING';
+    document.getElementById('d-notes').value    = lead.review_notes || '';
+
+    // ── Open modal ────────────────────────────────────────────────────────
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('detailModal')).show();
+  }
+
+  // Helper: render keyword proof chips (type = 'desc' | 'pdf')
+  function _kwChips(kws, type) {
+    if (!kws.length) return `<span class="kw-none">${type === 'pdf' ? 'Ninguna palabra clave encontrada en el texto del PDF' : '—'}</span>`;
+    const cls = type === 'pdf' ? 'kw-found-pdf' : 'kw-found-desc';
+    const icon = type === 'pdf' ? 'bi-file-earmark-check-fill' : 'bi-check-circle-fill';
+    return kws.map(k => `<span class="${cls}"><i class="bi ${icon} me-1"></i>${esc(k)}</span>`).join('');
+  }
+
+  function closeDetail() {
+    _selId = null;
+    bootstrap.Modal.getInstance(document.getElementById('detailModal'))?.hide();
+    document.querySelectorAll('#lead-tbody tr').forEach(r => r.classList.remove('table-primary'));
+  }
+
+  async function saveReview() {
+    if (!_selId) return;
+    const r = await fetch(`/api/leads/${_selId}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        reviewed:     true,
+        bid_decision: document.getElementById('d-decision').value,
+        review_notes: document.getElementById('d-notes').value,
+      }),
+    });
+    if (r.ok) { toast('Revisión guardada.','success'); loadStats(); loadLeads(); }
+    else       { toast('Error al guardar.','danger'); }
+  }
+
+  function toggleSpecs() {
+    _specsOpen = !_specsOpen;
+    document.getElementById('d-specs-wrapper').style.display = _specsOpen ? '' : 'none';
+    document.getElementById('specs-icon').className =
+      _specsOpen ? 'bi bi-chevron-down' : 'bi bi-chevron-right';
+  }
+
+  let _cronOpen = true;
+  function toggleCronograma() {
+    _cronOpen = !_cronOpen;
+    document.getElementById('d-cronograma-wrapper').style.display = _cronOpen ? '' : 'none';
+    document.getElementById('cron-icon').className =
+      _cronOpen ? 'bi bi-chevron-down' : 'bi bi-chevron-right';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  SCRAPER RUNNER
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function openRunModal() {
+    // Reset UI to "before start" state
+    _logTotal = 0;
+    document.getElementById('run-options').style.display        = '';
+    document.getElementById('run-options-query').style.display  = '';
+    document.getElementById('run-progress').style.display       = 'none';
+    document.getElementById('run-footer-before').style.display  = '';
+    document.getElementById('run-footer-after').style.cssText   = 'display:none!important';
+    document.getElementById('run-log').innerHTML = '';
+    new bootstrap.Modal(document.getElementById('runModal')).show();
+  }
+
+  async function startScraper() {
+    const noPdf = !document.getElementById('opt-pdf').checked;
+    const noAi  = !document.getElementById('opt-ai').checked;
+    const searchQuery = (document.getElementById('opt-search-query')?.value || '').trim();
+
+    // Switch UI to progress view
+    document.getElementById('run-options').style.display   = 'none';
+    document.getElementById('run-options-query').style.display = 'none';
+    document.getElementById('run-progress').style.display  = '';
+    document.getElementById('run-footer-before').style.display = 'none';
+    document.getElementById('run-footer-after').style.cssText   = '';
+    document.getElementById('btn-close-done').style.display = 'none';
+    document.getElementById('btn-stop').disabled = false;
+
+    _logTotal = 0;
+    document.getElementById('run-log').innerHTML = '';
+
+    try {
+      const res = await fetch('/api/scrape/start', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ no_pdf: noPdf, no_ai: noAi, search_query: searchQuery }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast(err.detail || 'Error al iniciar el scraper.', 'danger');
+        return;
+      }
+      const data = await res.json();
+      document.getElementById('run-mode-label').textContent = data.mode;
+      document.getElementById('run-started-label').textContent =
+        'Iniciado: ' + new Date(data.started_at + 'Z').toLocaleTimeString('es-PE');
+      document.getElementById('run-status-badge').textContent = 'En curso';
+      document.getElementById('run-status-badge').className   = 'badge bg-warning text-dark ms-2';
+
+      // Update navbar button
+      document.getElementById('btn-run').className = 'btn btn-sm btn-warning btn-running';
+      document.getElementById('btn-run').innerHTML = '<i class="bi bi-hourglass-split"></i> Ejecutando…';
+
+      _startPolling();
+    } catch(e) {
+      toast('No se pudo conectar con el servidor.', 'danger');
+    }
+  }
+
+  function _startPolling() {
+    if (_pollTimer) clearInterval(_pollTimer);
+    _pollTimer = setInterval(_pollStatus, 1500);
+  }
+
+  async function _pollStatus() {
+    try {
+      const s = await fetchJSON(`/api/scrape/status?since=${_logTotal}`);
+
+      // Append new log lines
+      if (s.log_lines && s.log_lines.length > 0) {
+        const box = document.getElementById('run-log');
+        s.log_lines.forEach(line => {
+          const span = document.createElement('span');
+          const cls  = line.startsWith('✓') || line.includes('SUCCESS') ? 'log-ok'
+                     : line.startsWith('✗') || line.includes('ERROR')   ? 'log-err'
+                     : line.includes('WARNING') || line.startsWith('⚠')  ? 'log-warn'
+                     : 'log-info';
+          span.className = cls;
+          span.textContent = line + '\n';
+          box.appendChild(span);
+        });
+        _logTotal = s.log_total;
+        document.getElementById('run-log-count').textContent = `${_logTotal} líneas`;
+        box.scrollTop = box.scrollHeight;   // auto-scroll
+      }
+
+      if (!s.running) {
+        _stopPolling();
+        _onScraperDone(s.returncode);
+      }
+    } catch(e) {}
+  }
+
+  function _stopPolling() {
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+  }
+
+  function _onScraperDone(returncode) {
+    const ok = returncode === 0;
+    document.getElementById('run-status-badge').textContent = ok ? 'Completado' : 'Error';
+    document.getElementById('run-status-badge').className   =
+      ok ? 'badge bg-success ms-2' : 'badge bg-danger ms-2';
+    document.getElementById('run-progress-bar').className =
+      ok ? 'progress-bar bg-success' : 'progress-bar bg-danger';
+    document.getElementById('btn-stop').disabled = true;
+    document.getElementById('btn-close-done').style.display = '';
+
+    // Restore navbar button
+    document.getElementById('btn-run').className = 'btn btn-sm btn-success';
+    document.getElementById('btn-run').innerHTML = '<i class="bi bi-play-fill"></i> Ejecutar Scraper';
+
+    if (ok) toast('¡Scraper finalizado! Se encontraron nuevos resultados.', 'success');
+    else    toast('El scraper terminó con errores. Revisa el log.', 'danger');
+  }
+
+  async function stopScraper() {
+    try {
+      await fetch('/api/scrape/stop', { method:'POST' });
+    } catch(e) {}
+  }
+
+  function closeDone() {
+    bootstrap.Modal.getInstance(document.getElementById('runModal'))?.hide();
+    loadStats();
+    loadLeads();
+  }
+
+  function onRunModalClose() {
+    // If scraper still running, keep polling in background but close modal
+    if (!_pollTimer) return;
+    // If done already, clean up
+  }
+
+  // Re-attach polling if page is loaded while scraper is already running
+  async function checkScraperStatus() {
+    try {
+      const s = await fetchJSON('/api/scrape/status?since=0');
+      if (s.running) {
+        document.getElementById('btn-run').className = 'btn btn-sm btn-warning btn-running';
+        document.getElementById('btn-run').innerHTML =
+          '<i class="bi bi-hourglass-split"></i> Ejecutando…';
+        _logTotal = s.log_total;
+        _startPolling();
+      }
+    } catch(e) {}
+  }
+
+  function scrollLogToBottom() {
+    const b = document.getElementById('run-log');
+    b.scrollTop = b.scrollHeight;
+  }
+
+  // ── Settings modal ────────────────────────────────────────────────────────
+  async function openSettings() {
+    const s = await fetchJSON('/api/settings');
+    _keywords = Array.isArray(s.keywords) ? [...s.keywords] : [];
+    document.getElementById('s-max-pages').value  = s.max_pages       ?? 0;
+    document.getElementById('s-start-page').value = s.spec_start_page || 20;
+    document.getElementById('s-end-page').value   = s.spec_end_page   || 30;
+    document.getElementById('s-date-from').value  = s.date_from || '';
+    document.getElementById('s-date-to').value    = s.date_to   || '';
+    renderKwChips();
+    new bootstrap.Modal(document.getElementById('settingsModal')).show();
+  }
+
+  function renderKwChips() {
+    document.getElementById('kw-chips').innerHTML = _keywords.map((kw, i) => `
+      <span class="kw-chip">${esc(kw)}
+        <span class="rm" onclick="removeKw(${i})" title="Eliminar">×</span>
+      </span>`).join('');
+  }
+
+  function focusKwInput() { document.getElementById('kw-input').focus(); }
+
+  function addKwFromInput() {
+    const inp = document.getElementById('kw-input');
+    const val = inp.value.replace(/,/g,'').trim().toLowerCase();
+    if (val && !_keywords.includes(val)) { _keywords.push(val); renderKwChips(); }
+    inp.value = ''; inp.focus();
+  }
+
+  function removeKw(i) { _keywords.splice(i,1); renderKwChips(); }
+
+  async function saveSettings() {
+    const mp = parseInt(document.getElementById('s-max-pages').value,  10);
+    const sp = parseInt(document.getElementById('s-start-page').value, 10);
+    const ep = parseInt(document.getElementById('s-end-page').value,   10);
+    const df = document.getElementById('s-date-from').value.trim();
+    const dt = document.getElementById('s-date-to').value.trim();
+    if (!_keywords.length) { toast('Agrega al menos una palabra clave.','warning'); return; }
+    if (isNaN(mp) || mp < 0) { toast('Limite de paginas invalido (usa 0 para sin limite).','warning'); return; }
+    if (isNaN(sp)||isNaN(ep)||ep<sp) { toast('Rango de paginas PDF invalido.','warning'); return; }
+    const r = await fetch('/api/settings',{
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ keywords:_keywords, max_pages:mp, spec_start_page:sp,
+                             spec_end_page:ep, date_from:df, date_to:dt }),
+    });
+    if (r.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('settingsModal'))?.hide();
+      toast('Configuracion guardada. Se aplicara en la proxima ejecucion.','success');
+      _activeKeywords = [..._keywords];
+    } else { toast('Error al guardar.','danger'); }
+  }
+
+  // ── Export ────────────────────────────────────────────────────────────────
+  function exportExcel() {
+    window.location.href = _b(`/api/export/excel?min_score=${document.getElementById('f-score').value||0}`);
+  }
+
+  async function clearAllLeads() {
+    if (!confirm('¿Eliminar TODOS los resultados scrapeados? Esta acción no se puede deshacer.')) return;
+    try {
+      const r = await fetch('/api/leads', { method: 'DELETE' });
+      const data = await r.json();
+      toast(`${data.deleted} resultado(s) eliminado(s).`, 'success');
+      closeDetail();
+      await loadLeads();
+      await loadStats();
+    } catch (e) {
+      toast('Error al limpiar: ' + e.message, 'danger');
+    }
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  async function fetchJSON(url, opts) {
+    const r = await fetch(url, opts);
+    if (r.status === 401) { showLogin(); throw new Error('Unauthenticated'); }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+  function setText(id, v) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = (v === null || v === undefined) ? '—' : v;
+  }
+  function esc(s) {
+    return String(s||'')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function toast(msg, type='info') {
+    const d = document.createElement('div');
+    d.className = `alert alert-${type} alert-dismissible shadow`;
+    d.innerHTML = `${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+    document.getElementById('toast-container').appendChild(d);
+    setTimeout(()=>d.remove(), 5000);
+  }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

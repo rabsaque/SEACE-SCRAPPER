@@ -1,0 +1,35 @@
+# Secretos y configuración local — NUNCA subir a GitHub
+.env
+*.db
+*.db-shm
+*.db-wal
+
+# Descargas y exportaciones
+downloads/*
+!downloads/.gitkeep
+*.xlsx
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# Inno Setup salida
+installer/output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Logs
+logs/
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini

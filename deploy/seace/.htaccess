@@ -1,0 +1,11 @@
+# SEACE Dashboard — reverse-proxy entry point
+# All requests under /seace/ are routed through index.php which proxies
+# them to the FastAPI backend running on 127.0.0.1:8765.
+# This file must live at:  public_html/seace/.htaccess
+
+Options -Indexes
+RewriteEngine On
+
+# Let index.php handle everything (including sub-paths like /seace/api/...)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^(.*)$ index.php [QSA,L]

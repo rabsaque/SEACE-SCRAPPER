@@ -1,0 +1,19 @@
+Options -Indexes
+
+# Block direct access to config.php (always)
+<Files "config.php">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Uncomment this after running setup.php to prevent public access:
+# <Files "setup.php">
+#     Order allow,deny
+#     Deny from all
+# </Files>
+
+# Route everything to index.php (SPA)
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^api\.php$ - [L]
+RewriteRule ^(.*)$ index.php [QSA,L]
