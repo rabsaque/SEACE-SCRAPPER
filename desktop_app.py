@@ -114,13 +114,13 @@ class SEACEApp(ctk.CTk):
         ctk.CTkLabel(
             hdr,
             text="  SEACE Buscador de Licitaciones",
-            font=ctk.CTkFont(size=15, weight="bold"),
+            font=ctk.CTkFont(size=21, weight="bold"),
             text_color="white",
         ).pack(side="left", padx=12, pady=10)
 
         self._status_bar = ctk.CTkLabel(
             hdr, text="Listo.", text_color="#93c5fd",
-            font=ctk.CTkFont(size=12),
+            font=ctk.CTkFont(size=17),
         )
         self._status_bar.pack(side="right", padx=16)
 
@@ -149,7 +149,7 @@ class SEACEApp(ctk.CTk):
         kf.grid(row=r, column=1, sticky="ew", padx=12, pady=(12, 2))
         kf.grid_columnconfigure(0, weight=1)
 
-        self._kw_box = ctk.CTkTextbox(kf, height=190, font=ctk.CTkFont(family="Courier", size=11))
+        self._kw_box = ctk.CTkTextbox(kf, height=190, font=ctk.CTkFont(family="Courier", size=15))
         self._kw_box.grid(row=0, column=0, sticky="ew")
         self._kw_box.insert("1.0", "\n".join(DEFAULT_KEYWORDS))
 
@@ -183,7 +183,7 @@ class SEACEApp(ctk.CTk):
                 background="#1d4ed8", foreground="white",
                 headersbackground="#1e3a8a", headersforeground="white",
                 selectbackground="#2563eb", selectforeground="white",
-                font=("Segoe UI", 10),
+                font=("Segoe UI", 14),
             )
             self._date_from.pack(side="left")
             # "Clear" button so the field can be left blank (no date filter)
@@ -206,7 +206,7 @@ class SEACEApp(ctk.CTk):
                 background="#1d4ed8", foreground="white",
                 headersbackground="#1e3a8a", headersforeground="white",
                 selectbackground="#2563eb", selectforeground="white",
-                font=("Segoe UI", 10),
+                font=("Segoe UI", 14),
             )
             self._date_to.pack(side="left")
             def _clear_to():
@@ -245,7 +245,7 @@ class SEACEApp(ctk.CTk):
 
         self._start_btn = ctk.CTkButton(
             bf, text="▶  Iniciar búsqueda", width=190, height=42,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(size=20, weight="bold"),
             command=self._start_scrape)
         self._start_btn.grid(row=0, column=0, padx=8)
 
@@ -402,8 +402,8 @@ class SEACEApp(ctk.CTk):
 
         win = ctk.CTkToplevel(self)
         win.title("Editar programación" if existing else "Nueva programación")
-        win.geometry("560x720")
-        win.resizable(False, True)
+        win.geometry("980x520")
+        win.resizable(True, False)
         win.update_idletasks()
         win.grab_set()
         messagebox.showinfo(
@@ -413,84 +413,92 @@ class SEACEApp(ctk.CTk):
             parent=win,
         )
 
-        sf = ctk.CTkScrollableFrame(win)
-        sf.pack(fill="both", expand=True, padx=12, pady=12)
-        sf.grid_columnconfigure(1, weight=1)
-        r = 0
+        # ── Two-column layout: left = scan settings, right = notifications ──
+        win.grid_columnconfigure(0, weight=1)
+        win.grid_columnconfigure(1, weight=1)
+        win.grid_rowconfigure(0, weight=1)
 
-        def lbl(text):
-            nonlocal r
-            ctk.CTkLabel(sf, text=text, anchor="w").grid(
-                row=r, column=0, sticky="w", padx=8, pady=4)
+        left  = ctk.CTkFrame(win)
+        right = ctk.CTkFrame(win)
+        left.grid (row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
+        right.grid(row=0, column=1, sticky="nsew", padx=(5, 10), pady=10)
+        left.grid_columnconfigure(1, weight=1)
+        right.grid_columnconfigure(1, weight=1)
 
-        # Nombre
-        lbl("Nombre:")
-        e_name = ctk.CTkEntry(sf, width=300)
-        e_name.insert(0, existing.name if existing else "")
-        e_name.grid(row=r, column=1, sticky="ew", padx=8, pady=4); r += 1
-
-        # Palabras clave
-        lbl("Palabras clave\n(una por línea):")
-        e_kw = ctk.CTkTextbox(sf, height=100, width=300)
-        kw_text = "\n".join(existing.keywords if existing else DEFAULT_KEYWORDS[:5])
-        e_kw.insert("1.0", kw_text)
-        e_kw.grid(row=r, column=1, sticky="ew", padx=8, pady=4); r += 1
-
-        # Frecuencia
-        lbl("Frecuencia:")
-        freq_var = ctk.StringVar(value=existing.frequency if existing else "daily")
-        freq_menu = ctk.CTkOptionMenu(sf, values=["daily", "weekly"],
-                                      variable=freq_var, width=160)
-        freq_menu.grid(row=r, column=1, sticky="w", padx=8, pady=4); r += 1
-
-        # Día de la semana (sólo para weekly)
+        # shared helpers
         day_names_es = ["Lunes", "Martes", "Miércoles", "Jueves",
                         "Viernes", "Sábado", "Domingo"]
-        lbl("Día de la semana:")
+
+        def lbl_on(parent, text, row):
+            ctk.CTkLabel(parent, text=text, anchor="w").grid(
+                row=row, column=0, sticky="nw", padx=10, pady=6)
+
+        # ── LEFT: scan settings ───────────────────────────────────────────────
+        ctk.CTkLabel(left, text="Configuración del escaneo",
+                     font=ctk.CTkFont(size=17, weight="bold")).grid(
+                     row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 4))
+
+        lbl_on(left, "Nombre:", 1)
+        e_name = ctk.CTkEntry(left)
+        e_name.insert(0, existing.name if existing else "")
+        e_name.grid(row=1, column=1, sticky="ew", padx=10, pady=6)
+
+        lbl_on(left, "Palabras clave\n(una por línea):", 2)
+        e_kw = ctk.CTkTextbox(left, height=110)
+        kw_text = "\n".join(existing.keywords if existing else DEFAULT_KEYWORDS[:5])
+        e_kw.insert("1.0", kw_text)
+        e_kw.grid(row=2, column=1, sticky="ew", padx=10, pady=6)
+
+        lbl_on(left, "Frecuencia:", 3)
+        freq_var = ctk.StringVar(value=existing.frequency if existing else "daily")
+        ctk.CTkOptionMenu(left, values=["daily", "weekly"],
+                          variable=freq_var, width=160).grid(
+                          row=3, column=1, sticky="w", padx=10, pady=6)
+
+        lbl_on(left, "Día de la semana:", 4)
         day_var = ctk.StringVar(
-            value=day_names_es[existing.day_of_week] if existing else "Lunes"
-        )
-        day_menu = ctk.CTkOptionMenu(sf, values=day_names_es,
-                                     variable=day_var, width=160)
-        day_menu.grid(row=r, column=1, sticky="w", padx=8, pady=4); r += 1
+            value=day_names_es[existing.day_of_week] if existing else "Lunes")
+        ctk.CTkOptionMenu(left, values=day_names_es,
+                          variable=day_var, width=160).grid(
+                          row=4, column=1, sticky="w", padx=10, pady=6)
 
-        # Hora de ejecución
-        lbl("Hora de ejecución\n(HH:MM, 24 h):")
-        e_time = ctk.CTkEntry(sf, width=100, placeholder_text="08:00")
+        lbl_on(left, "Hora (HH:MM):", 5)
+        e_time = ctk.CTkEntry(left, width=100, placeholder_text="08:00")
         e_time.insert(0, existing.time_of_day if existing else "08:00")
-        e_time.grid(row=r, column=1, sticky="w", padx=8, pady=4); r += 1
+        e_time.grid(row=5, column=1, sticky="w", padx=10, pady=6)
 
-        # Opciones
-        lbl("Opciones:")
-        opts_frm = ctk.CTkFrame(sf, fg_color="transparent")
-        opts_frm.grid(row=r, column=1, sticky="w", padx=8, pady=4); r += 1
+        lbl_on(left, "Opciones:", 6)
         ai_var  = ctk.BooleanVar(value=existing.use_ai if existing else False)
         pdf_var = ctk.BooleanVar(value=existing.download_pdf if existing else True)
         ena_var = ctk.BooleanVar(value=existing.enabled if existing else True)
-        ctk.CTkCheckBox(opts_frm, text="Usar IA", variable=ai_var).pack(anchor="w")
-        ctk.CTkCheckBox(opts_frm, text="Descargar PDFs", variable=pdf_var).pack(anchor="w")
-        ctk.CTkCheckBox(opts_frm, text="Habilitado", variable=ena_var).pack(anchor="w")
+        opts_frm = ctk.CTkFrame(left, fg_color="transparent")
+        opts_frm.grid(row=6, column=1, sticky="w", padx=10, pady=6)
+        ctk.CTkCheckBox(opts_frm, text="Usar IA",         variable=ai_var ).pack(anchor="w")
+        ctk.CTkCheckBox(opts_frm, text="Descargar PDFs",  variable=pdf_var).pack(anchor="w")
+        ctk.CTkCheckBox(opts_frm, text="Habilitado",      variable=ena_var).pack(anchor="w")
 
-        # Separator
-        ctk.CTkLabel(sf, text="— Notificaciones —",
-                     font=ctk.CTkFont(size=12, weight="bold"),
-                     text_color="gray").grid(
-                         row=r, column=0, columnspan=2,
-                         sticky="w", padx=8, pady=(12, 4)); r += 1
+        # ── RIGHT: notifications ──────────────────────────────────────────────
+        ctk.CTkLabel(right, text="Notificaciones por correo",
+                     font=ctk.CTkFont(size=17, weight="bold")).grid(
+                     row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 4))
 
-        # Palabras clave de alerta
-        lbl("Palabras clave\nde alerta:")
-        e_nkw = ctk.CTkTextbox(sf, height=80, width=300)
+        lbl_on(right, "Palabras clave\nde alerta:", 1)
+        e_nkw = ctk.CTkTextbox(right, height=140)
         nkw_text = "\n".join(existing.notify_keywords if existing else [])
         e_nkw.insert("1.0", nkw_text)
-        e_nkw.grid(row=r, column=1, sticky="ew", padx=8, pady=4); r += 1
+        e_nkw.grid(row=1, column=1, sticky="ew", padx=10, pady=6)
 
-        # Emails
-        lbl("Correos electrónicos\nde notificación:")
-        e_emails = ctk.CTkTextbox(sf, height=80, width=300)
+        lbl_on(right, "Correos de\nnotificación:", 2)
+        e_emails = ctk.CTkTextbox(right, height=140)
         email_text = "\n".join(existing.notify_emails if existing else [])
         e_emails.insert("1.0", email_text)
-        e_emails.grid(row=r, column=1, sticky="ew", padx=8, pady=4); r += 1
+        e_emails.grid(row=2, column=1, sticky="ew", padx=10, pady=6)
+
+        ctk.CTkLabel(right, text="Un correo por línea. Se enviará una alerta\n"
+                     "cuando se encuentre alguna palabra clave de alerta.",
+                     text_color="gray", font=ctk.CTkFont(size=13),
+                     anchor="w", justify="left").grid(
+                     row=3, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 6))
 
         # Save / Cancel
         def _save_form():
@@ -545,10 +553,10 @@ class SEACEApp(ctk.CTk):
                 messagebox.showerror("Error al guardar", str(exc), parent=win)
 
         btn_frm = ctk.CTkFrame(win, fg_color="transparent")
-        btn_frm.pack(pady=8)
-        ctk.CTkButton(btn_frm, text="💾  Guardar",
+        btn_frm.grid(row=1, column=0, columnspan=2, pady=10)
+        ctk.CTkButton(btn_frm, text="💾  Guardar", width=160,
                       command=_save_form).pack(side="left", padx=8)
-        ctk.CTkButton(btn_frm, text="Cancelar",
+        ctk.CTkButton(btn_frm, text="Cancelar", width=120,
                       fg_color="gray", hover_color="#555",
                       command=win.destroy).pack(side="left", padx=8)
 
@@ -602,7 +610,7 @@ class SEACEApp(ctk.CTk):
 
         # Section: IA
         ctk.CTkLabel(tab, text="Proveedor de Inteligencia Artificial",
-                     font=ctk.CTkFont(size=13, weight="bold"),
+                     font=ctk.CTkFont(size=18, weight="bold"),
                      anchor="w").grid(row=r, column=0, columnspan=2,
                                       sticky="w", padx=12, pady=(14, 4))
         r += 1
@@ -642,7 +650,7 @@ class SEACEApp(ctk.CTk):
 
         # Section: Scraper
         ctk.CTkLabel(tab, text="Comportamiento del Scraper",
-                     font=ctk.CTkFont(size=13, weight="bold"),
+                     font=ctk.CTkFont(size=18, weight="bold"),
                      anchor="w").grid(row=r, column=0, columnspan=2,
                                       sticky="w", padx=12, pady=(18, 4))
         r += 1
@@ -656,7 +664,7 @@ class SEACEApp(ctk.CTk):
 
         # ── Section: Email / SMTP ──────────────────────────────────────────────
         ctk.CTkLabel(tab, text="Configuración de Correo Electrónico",
-                     font=ctk.CTkFont(size=13, weight="bold"),
+                     font=ctk.CTkFont(size=18, weight="bold"),
                      anchor="w").grid(row=r, column=0, columnspan=2,
                                       sticky="w", padx=12, pady=(18, 4))
         r += 1
@@ -741,7 +749,7 @@ class SEACEApp(ctk.CTk):
         r += 1
         ctk.CTkLabel(tab,
                      text="Haz clic en '💾 Guardar configuración' para que los datos de correo persistan al cerrar la app.",
-                     text_color="gray", font=ctk.CTkFont(size=11),
+                     text_color="gray", font=ctk.CTkFont(size=15),
                      wraplength=420, anchor="w", justify="left").grid(
                          row=r, column=1, sticky="w", padx=12, pady=(0, 4))
         r += 1
@@ -813,15 +821,15 @@ class SEACEApp(ctk.CTk):
             card.grid(row=0, column=col, padx=20, pady=10, sticky="ew")
             sf.grid_columnconfigure(col, weight=1)
             num = ctk.CTkLabel(card, text="0",
-                               font=ctk.CTkFont(size=28, weight="bold"))
+                               font=ctk.CTkFont(size=39, weight="bold"))
             num.pack(pady=(6, 0))
             ctk.CTkLabel(card, text=label, text_color="gray",
-                         font=ctk.CTkFont(size=11)).pack(pady=(0, 6))
+                         font=ctk.CTkFont(size=15)).pack(pady=(0, 6))
             setattr(self, attr, num)
 
         # Log box
         self._log_box = ctk.CTkTextbox(
-            tab, font=ctk.CTkFont(family="Courier", size=11),
+            tab, font=ctk.CTkFont(family="Courier", size=15),
             state="disabled", wrap="word")
         self._log_box.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0, 6))
 
@@ -835,11 +843,19 @@ class SEACEApp(ctk.CTk):
         style = ttk.Style()
         style.theme_use("clam")
         style.configure("Leads.Treeview",
-                        rowheight=26, font=("Segoe UI", 10),
+                        rowheight=36, font=("Segoe UI", 14),
                         borderwidth=0, relief="flat")
         style.configure("Leads.Treeview.Heading",
-                        font=("Segoe UI", 10, "bold"), background="#e2e8f0")
+                        font=("Segoe UI", 14, "bold"), background="#e2e8f0")
         style.map("Leads.Treeview", background=[("selected", "#bfdbfe")])
+
+        # Style for cronograma treeview (larger rows, no overlap)
+        style.configure("Crono.Treeview",
+                        rowheight=36, font=("Segoe UI", 13),
+                        borderwidth=0, relief="flat")
+        style.configure("Crono.Treeview.Heading",
+                        font=("Segoe UI", 13, "bold"), background="#e2e8f0")
+        style.map("Crono.Treeview", background=[("selected", "#bfdbfe")])
 
         tree_frame = ctk.CTkFrame(tab, fg_color="transparent")
         tree_frame.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
@@ -1138,18 +1154,18 @@ class SEACEApp(ctk.CTk):
             frm = tk.Frame(nb, bg="#f8fafc")
             frm.grid_columnconfigure(0, weight=1)
             frm.grid_rowconfigure(0, weight=1)
-            t = tk.Text(frm, wrap="word", font=("Segoe UI", 10),
+            t = tk.Text(frm, wrap="word", font=("Segoe UI", 14),
                         relief="flat", padx=10, pady=8,
                         bg="#f8fafc", fg="#1a1a2e")
             vsb = ttk.Scrollbar(frm, orient="vertical", command=t.yview)
             t.configure(yscrollcommand=vsb.set)
             t.grid(row=0, column=0, sticky="nsew")
             vsb.grid(row=0, column=1, sticky="ns")
-            t.tag_configure("h",   font=("Segoe UI", 10, "bold"), foreground="#1d4ed8")
-            t.tag_configure("val", font=("Segoe UI", 10),          foreground="#1a1a2e")
+            t.tag_configure("h",   font=("Segoe UI", 14, "bold"), foreground="#1d4ed8")
+            t.tag_configure("val", font=("Segoe UI", 14),          foreground="#1a1a2e")
             t.tag_configure("sub", font=("Segoe UI",  9, "italic"),foreground="#374151")
-            t.tag_configure("ok",  font=("Segoe UI", 10),          foreground="#16a34a")
-            t.tag_configure("bad", font=("Segoe UI", 10),          foreground="#dc2626")
+            t.tag_configure("ok",  font=("Segoe UI", 14),          foreground="#16a34a")
+            t.tag_configure("bad", font=("Segoe UI", 14),          foreground="#dc2626")
             nb.add(frm, text=title)
             return t
 
@@ -1204,13 +1220,14 @@ class SEACEApp(ctk.CTk):
         cronograma = lead.get("cronograma") or []
         if cronograma:
             cols_c = ("stage", "date_start", "date_end")
-            tree_c = ttk.Treeview(crono_frm, columns=cols_c, show="headings", height=15)
+            tree_c = ttk.Treeview(crono_frm, columns=cols_c, show="headings",
+                                  height=15, style="Crono.Treeview")
             tree_c.heading("stage",      text="Etapa")
             tree_c.heading("date_start", text="Fecha inicio")
             tree_c.heading("date_end",   text="Fecha fin")
-            tree_c.column("stage",      width=340, stretch=True)
-            tree_c.column("date_start", width=150)
-            tree_c.column("date_end",   width=150)
+            tree_c.column("stage",      width=380, stretch=True)
+            tree_c.column("date_start", width=180)
+            tree_c.column("date_end",   width=180)
             vsb_c = ttk.Scrollbar(crono_frm, orient="vertical", command=tree_c.yview)
             tree_c.configure(yscrollcommand=vsb_c.set)
             tree_c.grid(row=0, column=0, sticky="nsew", padx=(6,0), pady=6)
@@ -1232,7 +1249,7 @@ class SEACEApp(ctk.CTk):
         else:
             tk.Label(crono_frm, text="Sin cronograma disponible",
                      bg="#f8fafc", fg="#6b7280",
-                     font=("Segoe UI", 11)).grid(pady=40)
+                     font=("Segoe UI", 15)).grid(pady=40)
 
         # ── Tab 4: Revisión ───────────────────────────────────────────────────
         rev_frm = ctk.CTkFrame(win)  # NOT added to nb yet — we grid it separately
