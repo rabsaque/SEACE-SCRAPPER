@@ -35,8 +35,9 @@ DisableProgramGroupPage=yes
 OutputDir=output
 OutputBaseFilename=SEACEBuscador_Setup_{#AppVersion}
 
-; Icono del instalador (opcional — descomenta si tienes el archivo)
-; SetupIconFile=..\assets\icon.ico
+; Icono del instalador y de la aplicación
+SetupIconFile=..\assets\icon.ico
+UninstallDisplayIcon={app}\{#AppExeName}
 
 ; Compresión
 Compression=lzma2/ultra64
@@ -50,6 +51,8 @@ WizardResizable=yes
 ; Privilegios — no requiere ser administrador
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline
+; Asegurar que el acceso directo del escritorio funcione sin admin
+UsedUserAreasWarning=no
 
 ; Mostrar licencia (descomenta si creas un archivo LICENSE.txt)
 ; LicenseFile=..\LICENSE.txt
@@ -81,9 +84,10 @@ Name: "{group}\{#AppName}"; \
 Name: "{group}\Desinstalar {#AppName}"; \
     Filename: "{uninstallexe}"
 
-; Escritorio (opcional, según tarea)
-Name: "{commondesktop}\{#AppName}"; \
+; Escritorio — usar {userdesktop} (no requiere admin, funciona con PrivilegesRequired=lowest)
+Name: "{userdesktop}\{#AppName}"; \
     Filename: "{app}\{#AppExeName}"; \
+    IconFilename: "{app}\{#AppExeName}"; \
     Tasks: desktopicon; \
     Comment: "Buscador de licitaciones SEACE"
 
