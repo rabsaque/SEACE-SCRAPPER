@@ -94,6 +94,8 @@ class SEACEApp(ctk.CTk):
 
         # Deferred first-run check so the window appears first
         self.after(500, self._check_playwright_async)
+        # Auto-load any existing results from previous sessions
+        self.after(800, self._refresh_results)
 
     def _on_close(self) -> None:
         self._scheduler_service.stop()
@@ -807,11 +809,34 @@ class SEACEApp(ctk.CTk):
 
     def _build_progress_tab(self, tab: ctk.CTkFrame) -> None:
         tab.grid_columnconfigure(0, weight=1)
-        tab.grid_rowconfigure(1, weight=1)
+        tab.grid_rowconfigure(2, weight=1)
+
+        # ── Search-in-progress banner ─────────────────────────────────────────
+        self._search_banner = ctk.CTkFrame(
+            tab, fg_color=("#1d4ed8", "#1e3a8a"), corner_radius=8)
+        self._search_banner.grid(row=0, column=0, sticky="ew", padx=6, pady=(6, 2))
+        self._search_banner.grid_columnconfigure(0, weight=1)
+
+        self._search_lbl = ctk.CTkLabel(
+            self._search_banner,
+            text="🔍  Buscando licitaciones, por favor espere...",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color="white",
+        )
+        self._search_lbl.grid(row=0, column=0, padx=16, pady=(10, 4))
+
+        self._search_bar = ctk.CTkProgressBar(
+            self._search_banner, mode="indeterminate",
+            height=12, corner_radius=6,
+            progress_color="#60a5fa",
+        )
+        self._search_bar.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 10))
+        self._search_bar.set(0)
+        self._search_banner.grid_remove()   # hidden until search starts
 
         # Stats counters
         sf = ctk.CTkFrame(tab)
-        sf.grid(row=0, column=0, sticky="ew", padx=6, pady=6)
+        sf.grid(row=1, column=0, sticky="ew", padx=6, pady=6)
         for col, (label, attr) in enumerate([
             ("Filas escaneadas", "_stat_scanned"),
             ("Coincidencias",    "_stat_matches"),
@@ -831,7 +856,7 @@ class SEACEApp(ctk.CTk):
         self._log_box = ctk.CTkTextbox(
             tab, font=ctk.CTkFont(family="Courier", size=15),
             state="disabled", wrap="word")
-        self._log_box.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0, 6))
+        self._log_box.grid(row=2, column=0, sticky="nsew", padx=6, pady=(0, 6))
 
     # ── Results tab ───────────────────────────────────────────────────────────
 
@@ -885,6 +910,16 @@ class SEACEApp(ctk.CTk):
         vsb.grid(row=0, column=1, sticky="ns")
         hsb.grid(row=1, column=0, sticky="ew")
         self._tree.bind("<Double-1>", self._on_lead_double_click)
+
+        # Empty-state label (shown when no results yet)
+        self._empty_lbl = ctk.CTkLabel(
+            tree_frame,
+            text="📋  Aún no hay resultados.\n\nVe a «Nueva Búsqueda» y presiona Iniciar Búsqueda.",
+            font=ctk.CTkFont(size=18),
+            text_color="gray",
+        )
+        self._empty_lbl.grid(row=0, column=0, sticky="nsew")
+        self._empty_lbl.grid_remove()   # hidden until needed
 
         # Bottom bar
         bf = ctk.CTkFrame(tab, fg_color="transparent")
@@ -1076,6 +1111,11 @@ class SEACEApp(ctk.CTk):
                 for l in leads_obj
             ]
             self._populate_tree()
+            # Show/hide empty-state label
+            if self._leads:
+                self._empty_lbl.grid_remove()
+            else:
+                self._empty_lbl.grid()
             self._log_append("INFO", f"Tabla actualizada: {len(self._leads)} lead(s) cargados.")
         except Exception as exc:
             import traceback
@@ -1505,6 +1545,14 @@ class SEACEApp(ctk.CTk):
     def _set_running(self, running: bool) -> None:
         self._start_btn.configure(state="disabled" if running else "normal")
         self._stop_btn.configure(state="normal"   if running else "disabled")
+        if running:
+            self._search_banner.grid()
+            self._search_bar.start()
+            self._status_bar.configure(
+                text="🔍 Buscando...", text_color="#fbbf24")
+        else:
+            self._search_bar.stop()
+            self._search_banner.grid_remove()
 
     def _reset_keywords(self) -> None:
         self._kw_box.delete("1.0", "end")
