@@ -122,14 +122,32 @@ class SchedulerService:
 
         try:
             from main import run_pipeline  # local import to avoid circular deps
+            from datetime import timedelta
+
+            # Combine search keywords + alert keywords so the scan finds
+            # everything relevant (alert keywords also trigger email notifications)
+            all_keywords = list(dict.fromkeys(
+                [k for k in (scan.keywords + scan.notify_keywords) if k.strip()]
+            ))
+
+            # Auto date range: if none set, search from last run to today
+            # so scheduled scans only pick up NEW procedures each time
+            date_from = scan.date_from
+            date_to = scan.date_to
+            if not date_from and not date_to:
+                if scan.last_run_at:
+                    date_from = scan.last_run_at.strftime("%d/%m/%Y")
+                else:
+                    date_from = (datetime.utcnow() - timedelta(days=7)).strftime("%d/%m/%Y")
+                date_to = datetime.utcnow().strftime("%d/%m/%Y")
 
             result = asyncio.run(run_pipeline(
                 verbose=False,
                 use_ai=scan.use_ai,
                 download_pdf=scan.download_pdf,
-                keywords=scan.keywords,
-                date_from=scan.date_from,
-                date_to=scan.date_to,
+                keywords=all_keywords,
+                date_from=date_from,
+                date_to=date_to,
                 max_pages=scan.max_pages if scan.max_pages > 0 else None,
                 user_id=0,
                 job_id=0,

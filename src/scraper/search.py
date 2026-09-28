@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import unicodedata
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from loguru import logger
@@ -41,6 +42,7 @@ from src.config import settings
 
 # ── Column indices (0-based, verified against live site) ──────────────────────
 COL_ENTITY       = 1
+COL_PUB_DATE     = 2   # "Fecha y Hora de Publicacion" e.g. "22/09/2026 19:54"
 COL_NOMENCLATURE = 3
 COL_RESTARTED    = 4
 COL_OBJ_TYPE     = 5
@@ -57,6 +59,7 @@ class RawRow:
     restarted_from: str = ""
     object_type: str = ""
     description: str = ""
+    pub_date: str = ""               # "Fecha y Hora de Publicacion" from col 2
     row_index: int = 0
     page_num: int = 0                # which search-results page this row came from
     ficha_anchor_onclick: str = ""   # raw onclick attr for the ficha icon
@@ -129,6 +132,29 @@ class SEACESearch:
             blob = _normalize(row.keyword_blob)
             return any(_normalize(kw) in blob for kw in self.keywords)
         return _matches_keywords(row)
+
+    def _date_in_range(self, pub_date: str) -> bool:
+        """
+        Return True if pub_date (e.g. '22/09/2026 19:54') falls within
+        self.date_from … self.date_to.  If either bound is unset, that side
+        is open.  Parsing failures are treated as in-range (don't discard).
+        """
+        if not pub_date or (not self.date_from and not self.date_to):
+            return True
+        try:
+            # pub_date from SEACE: "DD/MM/YYYY HH:MM" or "DD/MM/YYYY"
+            dt = datetime.strptime(pub_date.strip()[:10], "%d/%m/%Y")
+            if self.date_from:
+                df = datetime.strptime(self.date_from.strip()[:10], "%d/%m/%Y")
+                if dt < df:
+                    return False
+            if self.date_to:
+                dt2 = datetime.strptime(self.date_to.strip()[:10], "%d/%m/%Y")
+                if dt > dt2:
+                    return False
+            return True
+        except ValueError:
+            return True  # unparseable → don't discard
 
     # ── Navigation ────────────────────────────────────────────────────────────
 
@@ -512,6 +538,7 @@ class SEACESearch:
                         ri:          tr.getAttribute('data-ri'),
                         idx:         idx,
                         entity:      g({COL_ENTITY}),
+                        pub_date:    g({COL_PUB_DATE}),
                         nomenclature:g({COL_NOMENCLATURE}),
                         restarted:   g({COL_RESTARTED}),
                         obj_type:    g({COL_OBJ_TYPE}),
@@ -535,6 +562,7 @@ class SEACESearch:
 
             results.append(RawRow(
                 entity=d["entity"],
+                pub_date=d.get("pub_date", ""),
                 nomenclature=d["nomenclature"],
                 restarted_from=d["restarted"],
                 object_type=d["obj_type"],
@@ -592,12 +620,22 @@ class SEACESearch:
             for row in rows:
                 self.rows_scanned += 1
                 row.page_num = page_num   # stamp page number on every row
+
+                # Local date filter — backup for when SEACE ignores form dates
+                if not self._date_in_range(row.pub_date):
+                    logger.debug(
+                        "Skipping (out of date range): {} — {}",
+                        row.pub_date, row.nomenclature
+                    )
+                    continue
+
                 if accept_all or self._row_matches(row):
                     logger.success(
-                        "MATCH [p{}/r{}] {} | {}",
+                        "MATCH [p{}/r{}] {} | {} | pub:{}",
                         page_num, row.row_index,
                         row.nomenclature,
                         row.description[:60],
+                        row.pub_date,
                     )
                     yield row
                 else:
