@@ -130,16 +130,10 @@ class SchedulerService:
                 [k for k in (scan.keywords + scan.notify_keywords) if k.strip()]
             ))
 
-            # Auto date range: if none set, search from last run to today
-            # so scheduled scans only pick up NEW procedures each time
-            date_from = scan.date_from
-            date_to = scan.date_to
-            if not date_from and not date_to:
-                if scan.last_run_at:
-                    date_from = scan.last_run_at.strftime("%d/%m/%Y")
-                else:
-                    date_from = (datetime.utcnow() - timedelta(days=7)).strftime("%d/%m/%Y")
-                date_to = datetime.utcnow().strftime("%d/%m/%Y")
+            # Always search the last 30 days to today — this ensures recent
+            # open procedures are always included regardless of date settings
+            date_from = (datetime.utcnow() - timedelta(days=30)).strftime("%d/%m/%Y")
+            date_to = datetime.utcnow().strftime("%d/%m/%Y")
 
             result = asyncio.run(run_pipeline(
                 verbose=False,
